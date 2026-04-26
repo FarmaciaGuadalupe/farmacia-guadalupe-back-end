@@ -33,7 +33,6 @@ namespace WebApi.Controllers
 
             var username = dto.user.Trim();
 
-            // 1) Buscar usuario (incluye rol/estado)
             var emp = await _dataBase.Employees
                 .Include(e => e.EmployeeRole)
                 .Include(e => e.EmployeeStatus)
@@ -42,17 +41,13 @@ namespace WebApi.Controllers
             if (emp == null)
                 return Unauthorized(new ApiResponse { success = false, message = "Credenciales inválidas" });
 
-            // 2) Validar password (plain text según tu modelo actual)
-            // RECOMENDADO: aplicar hashing en cuanto puedas.
-            var okPassword = emp.password == dto.password;
+            var okPassword = BCrypt.Net.BCrypt.Verify(dto.password, emp.password);
             if (!okPassword)
                 return Unauthorized(new ApiResponse { success = false, message = "Credenciales inválidas" });
 
-            // 3) Validar estado (opcional: por ejemplo, solo status activo = 1)
             if (emp.EmployeeStatusId != 1)
                 return Forbid(); // o Unauthorized con mensaje
 
-            // 4) Generar JWT
             var (tokenString, expires) = GenerateJwt(emp);
 
             var resp = new LoginResponseDto

@@ -326,7 +326,7 @@ namespace WebApi.Controllers
                 user = username,
                 // Nota: en producción NO guardes password en texto plano.
                 // Aquí lo dejamos como pides; idealmente usa hashing (ej. BCrypt/ASP.NET Identity).
-                password = dto.password,
+                password = BCrypt.Net.BCrypt.HashPassword(dto.password),
                 email = email,
                 url_photo = url_photo,
                 hiring_date = dto.hiring_date == default ? DateTime.UtcNow : dto.hiring_date,
