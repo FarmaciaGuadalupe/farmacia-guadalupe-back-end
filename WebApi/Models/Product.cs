@@ -43,5 +43,7 @@ public class Product
     public Presentation presentation { get; set; }
     public UnitOfMeasure unit_of_measure { get; set; }
     
+    public Medicine medicine { get; set; }
+    
     public virtual ICollection<Batch> batches { get; set; } = new List<Batch>();
 }
