@@ -29,11 +29,11 @@ public class Sale
 
     [MaxLength(50)]
     [Column("prescription_number")]
-    public string PrescriptionNumber { get; set; }
+    public string? PrescriptionNumber { get; set; }
 
     [MaxLength(150)]
     [Column("doctor_name")]
-    public string DoctorName { get; set; }
+    public string? DoctorName { get; set; }
 
     [Required]
     [Column("gross_subtotal", TypeName = "decimal(18,2)")]

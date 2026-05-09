@@ -1,4 +1,6 @@
-﻿namespace WebApi.GraphQL
+﻿using Microsoft.EntityFrameworkCore;
+
+namespace WebApi.GraphQL
 {
     // DbContext
     using WebApi.Data; 
@@ -6,6 +8,7 @@
     // Modelos
     using WebApi.Models.Empleados;
     using WebApi.Models;
+    using WebApi.GraphQL.Payloads;
     
     using HotChocolate.Types;
     using HotChocolate.Data;
@@ -210,5 +213,195 @@
             return context.PaymentMethods;
         }
 
+        [UsePaging(IncludeTotalCount = true)] // Opcional: IncludeTotalCount te permite saber el total de páginas
+        [UseProjection]
+        [UseFiltering]
+        [UseSorting]
+        public IQueryable<Sale> GetSales([Service] AppDbContext context)
+        {
+            // Solo devuelves el IQueryable. 
+            // HotChocolate se encarga de añadir los Includes, el WHERE, el ORDER BY y el LIMIT (Paginación).
+            return context.Sales;
+        }
+
+        [UseProjection]
+        public async Task<Sale?> GetSaleById(int id, [Service] AppDbContext context)
+        {
+            return await context.Sales
+                .Include(s => s.Employee) 
+                .Include(s => s.SaleDetails)
+                    .ThenInclude(sd => sd.Product)
+                        .ThenInclude(p => p.medicine)
+                .Include(s => s.SalePayments)
+                    .ThenInclude(ss => ss.PaymentMethod)
+                .FirstOrDefaultAsync(s => s.SaleId == id);  
+        }
+
+        public SalesSummary GetTotalSalesByMonth(
+            int year, 
+            int month, 
+            [Service] AppDbContext context)
+        {
+            var startOfMonth = new DateTime(year, month, 1);
+            var endOfMonth = startOfMonth.AddMonths(1);
+            var startOfPrevMonth = startOfMonth.AddMonths(-1);
+
+            var total = context.Sales
+                .Where(s => s.SaleDate >= startOfMonth && s.SaleDate < endOfMonth && s.Status == "COMPLETED")
+                .Sum(s => (decimal?)s.NetTotal) ?? 0m;
+
+            var prevTotal = context.Sales
+                .Where(s => s.SaleDate >= startOfPrevMonth && s.SaleDate < startOfMonth && s.Status == "COMPLETED")
+                .Sum(s => (decimal?)s.NetTotal) ?? 0m;
+
+            decimal percentage = 0;
+            if (prevTotal > 0)
+                percentage = ((total - prevTotal) / prevTotal) * 100;
+            else if (total > 0)
+                percentage = 100;
+
+            return new SalesSummary(total, Math.Round(percentage, 2));
+        }
+
+        public SalesSummary GetNumberOfSalesByMonth(
+            int year, 
+            int month, 
+            [Service] AppDbContext context)
+        {
+            var startOfMonth = new DateTime(year, month, 1);
+            var endOfMonth = startOfMonth.AddMonths(1);
+            var startOfPrevMonth = startOfMonth.AddMonths(-1);
+
+            var count = context.Sales
+                .Count(s => s.SaleDate >= startOfMonth && s.SaleDate < endOfMonth && s.Status == "COMPLETED");
+
+            var prevCount = context.Sales
+                .Count(s => s.SaleDate >= startOfPrevMonth && s.SaleDate < startOfMonth && s.Status == "COMPLETED");
+
+            decimal percentage = 0;
+            if (prevCount > 0)
+                percentage = ((decimal)(count - prevCount) / prevCount) * 100;
+            else if (count > 0)
+                percentage = 100;
+
+            return new SalesSummary(count, Math.Round(percentage, 2));
+        }
+
+        public SalesSummary GetTotalSalesByDay(
+            DateTime date, 
+            [Service] AppDbContext context)
+        {
+            var day = date.Date;
+            var nextDay = day.AddDays(1);
+            var prevDay = day.AddDays(-1);
+
+            var total = context.Sales
+                .Where(s => s.SaleDate >= day && s.SaleDate < nextDay && s.Status == "COMPLETED")
+                .Sum(s => (decimal?)s.NetTotal) ?? 0m;
+
+            var prevTotal = context.Sales
+                .Where(s => s.SaleDate >= prevDay && s.SaleDate < day && s.Status == "COMPLETED")
+                .Sum(s => (decimal?)s.NetTotal) ?? 0m;
+
+            decimal percentage = 0;
+            if (prevTotal > 0)
+                percentage = ((total - prevTotal) / prevTotal) * 100;
+            else if (total > 0)
+                percentage = 100;
+
+            return new SalesSummary(total, Math.Round(percentage, 2));
+        }
+
+        public SalesSummary GetNumberOfSalesByDay(
+            DateTime date, 
+            [Service] AppDbContext context)
+        {
+            var day = date.Date;
+            var nextDay = day.AddDays(1);
+            var prevDay = day.AddDays(-1);
+
+            var count = context.Sales
+                .Count(s => s.SaleDate >= day && s.SaleDate < nextDay && s.Status == "COMPLETED");
+
+            var prevCount = context.Sales
+                .Count(s => s.SaleDate >= prevDay && s.SaleDate < day && s.Status == "COMPLETED");
+
+            decimal percentage = 0;
+            if (prevCount > 0)
+                percentage = ((decimal)(count - prevCount) / prevCount) * 100;
+            else if (count > 0)
+                percentage = 100;
+
+            return new SalesSummary(count, Math.Round(percentage, 2));
+        }
+
+        public List<ChartData> GetSalesStats(
+            DateTime startDate,
+            DateTime endDate,
+            FrequencyType type,
+            [Service] AppDbContext context)
+        {
+            var query = context.Sales
+                .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status == "COMPLETED");
+
+            switch (type)
+            {
+                case FrequencyType.Daily:
+                    return query
+                        .GroupBy(s => s.SaleDate.Date)
+                        // 1. Database execution (SQL)
+                        .Select(g => new { 
+                            Date = g.Key, 
+                            Count = g.Count() 
+                        }) 
+                        .ToList() // Executes the SQL query here
+                        // 2. In-memory execution (C#)
+                        .Select(x => new ChartData(
+                            x.Date.ToString("yyyy-MM-dd"),
+                            (decimal)x.Count
+                        ))
+                        .OrderBy(x => x.Label)
+                        .ToList();
+
+                case FrequencyType.Monthly:
+                    return query
+                        .GroupBy(s => new { s.SaleDate.Year, s.SaleDate.Month })
+                        // 1. Database execution (SQL)
+                        .Select(g => new { 
+                            g.Key.Year, 
+                            g.Key.Month, 
+                            Count = g.Count() 
+                        })
+                        .ToList() // Executes the SQL query here
+                        // 2. In-memory execution (C#)
+                        .Select(x => new ChartData(
+                            $"{x.Year}-{x.Month:D2}",
+                            (decimal)x.Count
+                        ))
+                        .OrderBy(x => x.Label)
+                        .ToList();
+
+                case FrequencyType.Yearly:
+                    return query
+                        .GroupBy(s => s.SaleDate.Year)
+                        // 1. Database execution (SQL)
+                        .Select(g => new { 
+                            Year = g.Key, 
+                            Count = g.Count() 
+                        })
+                        .ToList() // Executes the SQL query here
+                        // 2. In-memory execution (C#)
+                        .Select(x => new ChartData(
+                            x.Year.ToString(),
+                            (decimal)x.Count
+                        ))
+                        .OrderBy(x => x.Label)
+                        .ToList();
+
+                default:
+                    return new List<ChartData>();
+            }
+        }
+        
     }
 }

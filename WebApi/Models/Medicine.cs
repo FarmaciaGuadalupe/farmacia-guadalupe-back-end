@@ -45,7 +45,5 @@ public class Medicine
 
     [ForeignKey("administration_route_id")]
     public virtual AdministrationRoute administration_route { get; set; }
-    
     public virtual ICollection<MedicineActiveIngredient> medicine_active_ingredients { get; set; } = new List<MedicineActiveIngredient>();
-    
 }
