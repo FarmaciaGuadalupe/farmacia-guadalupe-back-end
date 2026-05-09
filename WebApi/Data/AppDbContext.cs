@@ -213,7 +213,6 @@ namespace WebApi.Data
                     .WithMany()
                     .HasForeignKey(d => d.unit_of_measure_id)
                     .OnDelete(DeleteBehavior.Restrict);
-
             });
 
             modelBuilder.Entity<Medicine>(entity =>
@@ -227,7 +226,7 @@ namespace WebApi.Data
                 // Relación 1:1 o 1:N con Product (Depende de si un producto solo puede ser una medicina)
                 // Generalmente es 1:1 en farmacia (Un item de inventario = un medicamento específico)
                 entity.HasOne(m => m.product)
-                    .WithOne() // Si Product no tiene una propiedad virtual Medicine
+                    .WithOne(p => p.medicine) // Si Product no tiene una propiedad virtual Medicine
                     .HasForeignKey<Medicine>(m => m.product_id)
                     .OnDelete(DeleteBehavior.Cascade);
 

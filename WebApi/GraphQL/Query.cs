@@ -1,4 +1,6 @@
-﻿namespace WebApi.GraphQL
+﻿using Microsoft.EntityFrameworkCore;
+
+namespace WebApi.GraphQL
 {
     // DbContext
     using WebApi.Data; 
@@ -211,13 +213,28 @@
             return context.PaymentMethods;
         }
 
-        [UsePaging]
+        [UsePaging(IncludeTotalCount = true)] // Opcional: IncludeTotalCount te permite saber el total de páginas
         [UseProjection]
         [UseFiltering]
         [UseSorting]
         public IQueryable<Sale> GetSales([Service] AppDbContext context)
         {
+            // Solo devuelves el IQueryable. 
+            // HotChocolate se encarga de añadir los Includes, el WHERE, el ORDER BY y el LIMIT (Paginación).
             return context.Sales;
+        }
+
+        [UseProjection]
+        public async Task<Sale?> GetSaleById(int id, [Service] AppDbContext context)
+        {
+            return await context.Sales
+                .Include(s => s.Employee) 
+                .Include(s => s.SaleDetails)
+                    .ThenInclude(sd => sd.Product)
+                        .ThenInclude(p => p.medicine)
+                .Include(s => s.SalePayments)
+                    .ThenInclude(ss => ss.PaymentMethod)
+                .FirstOrDefaultAsync(s => s.SaleId == id);  
         }
 
         public SalesSummary GetTotalSalesByMonth(

@@ -89,7 +89,7 @@ builder.Services
     .AddFiltering()              // Habilita [UseFiltering]
     .AddSorting()               // Habilita [UseSorting]
     .AddCostAnalyzer() 
-    .ModifyCostOptions(o => o.MaxFieldCost = 5000);
+    .ModifyCostOptions(o => o.MaxFieldCost = 7000);
 
 var app = builder.Build();
 
