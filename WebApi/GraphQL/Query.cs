@@ -402,6 +402,31 @@ namespace WebApi.GraphQL
                     return new List<ChartData>();
             }
         }
+
+        public List<MedicineStock> GetLowStockMedicines([Service] AppDbContext context)
+        {
+            var products = context.Products
+                .Include(p => p.medicine)
+                .Where(p => p.medicine != null)
+                .ToList();
+
+            var result = products
+                // .Where(p => p.stock_units <= (p.min_stock_units * 1.25m)) // Cerca (hasta 25% por encima del mínimo) o por debajo
+                .OrderBy(p => p.stock_units - p.min_stock_units) // Los más críticos primero
+                .Take(10)
+                .Select(p => {
+                    var percentage = p.min_stock_units > 0 ? ((decimal)p.stock_units / p.min_stock_units) * 100 : 0;
+                    return new MedicineStock(
+                        p.medicine.name,
+                        p.stock_units,
+                        p.min_stock_units,
+                        Math.Round(percentage, 2)
+                    );
+                })
+                .ToList();
+
+            return result;
+        }
         
     }
 }

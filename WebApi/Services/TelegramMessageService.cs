@@ -34,4 +34,28 @@ public class TelegramMessageService : ITelegramMessageService
 
         return message;
     }
+
+    public string GetLowStockMedicinesMessage()
+    {
+        var query = new Query();
+        var lowStockMedicines = query.GetLowStockMedicines(_context);
+
+        if (lowStockMedicines.Count == 0)
+        {
+            return "✅ <b>Reporte de Inventario:</b> Todos los medicamentos cuentan con un stock adecuado.";
+        }
+
+        string message = "⚠️ <b>Alerta de Bajo Stock (Top 10)</b> ⚠️\n\n";
+
+        foreach (var med in lowStockMedicines)
+        {
+            message += $"💊 <b>{med.MedicineName}</b>\n";
+            message += $"   Stock Actual: {med.StockUnits} (Mínimo: {med.MinStockUnits})\n";
+            message += $"   Estado: {med.StockPercentage}% del mínimo\n\n";
+        }
+
+        message += "<i>Por favor, considere reabastecer estos productos pronto.</i>";
+
+        return message;
+    }
 }

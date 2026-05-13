@@ -34,7 +34,7 @@ namespace WebApi.Controllers
         public async Task<IActionResult> ProbarBot()
         {
             try {
-                string message = _telegramMessageService.GetDailySalesReportMessage(DateTime.Now);
+                string message = _telegramMessageService.GetLowStockMedicinesMessage();
                 await _telegramService.SendDailyReport(message);
                 return Ok("Mensaje enviado con éxito.");
             }
