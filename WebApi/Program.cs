@@ -2,9 +2,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Hangfire;
 using WebApi.Data;
 using WebApi.GraphQL;
 using WebApi.GraphQL.Mutations;
+using WebApi.Interfaces;
+using WebApi.Jobs;
+using WebApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,7 +95,28 @@ builder.Services
     .AddCostAnalyzer() 
     .ModifyCostOptions(o => o.MaxFieldCost = 7000);
 
+builder.Services.AddScoped<ITelegramService, TelegramService>();
+builder.Services.AddScoped<ITelegramMessageService, TelegramMessageService>();
+
+builder.Services.AddHangfire(config => config
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHangfireServer();
+
 var app = builder.Build();
+
+using (var serviceScope = app.Services.CreateScope())
+{
+    var recurringJobManager = serviceScope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    
+    recurringJobManager.AddOrUpdate<DailyReportJob>(
+        "ReporteDiarioFarmacia",
+        job => job.ExecuteAsync(),
+        "0 15 * * *", 
+        new RecurringJobOptions 
+        { 
+            TimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Managua") 
+        });
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
