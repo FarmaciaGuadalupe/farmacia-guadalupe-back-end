@@ -30,60 +30,62 @@ public class TelegramService : ITelegramService
         );
     }
 
-    public void InitListen()
-    {
-        var botClient = new TelegramBotClient(_botToken);
+public void InitListen()
+{
+    var botClient = new TelegramBotClient(_botToken);
 
-        botClient.StartReceiving(
-            updateHandler: async (client, update, cancellationToken) =>
+    botClient.StartReceiving(
+        updateHandler: async (client, update, cancellationToken) =>
+        {
+            try
             {
-                try
+                // 1. PRIMERO: Ruteo de Clics en Botones (CallbackQueries)
+                if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery != null)
                 {
-                    
-                    // 2. Manejo de Mensajes de Texto
-                    if (update.Message is not { Text: { } messageText } message) return;
+                    await HandleCallbackQueryAsync(client, update.CallbackQuery);
+                    return; // Terminamos la ejecución aquí
+                }
 
+                // 2. SEGUNDO: Ruteo de Mensajes de Texto
+                if (update.Type == UpdateType.Message && update.Message?.Text != null)
+                {
+                    var message = update.Message;
+                    var messageText = message.Text;
                     var chatId = message.Chat.Id;
                     var messageId = message.MessageId;
 
-                    // --- EL CÓDIGO DE MODERACIÓN (NUEVO) ---
-                    // Si el mensaje NO empieza con "/"
+                    // --- EL CÓDIGO DE MODERACIÓN ---
+                    // Si el mensaje NO empieza con "/", lo borramos de inmediato
                     if (!messageText.StartsWith("/"))
                     {
                         try
                         {
-                            // El bot borra el mensaje inmediatamente
                             await client.DeleteMessage(chatId, messageId, cancellationToken);
-                            return; // Cortamos la ejecución aquí, no procesamos nada más
                         }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"Error al intentar borrar mensaje (¿Faltan permisos de Admin?): {ex.Message}");
-                            return;
                         }
+                        
+                        return; // Cortamos la ejecución, no procesamos nada más
                     }
-                    
-                    if (update.Type == UpdateType.Message && update.Message?.Text != null)
-                    {
-                        await HandleMessageAsync(client, update.Message, update, cancellationToken);
-                    }
-                    else if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery != null)
-                    {
-                        await HandleCallbackQueryAsync(client, update.CallbackQuery);
-                    }
+
+                    // 3. TERCERO: Si sobrevivió a la moderación, es un comando válido
+                    await HandleMessageAsync(client, message, update, cancellationToken);
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error procesando update de Telegram: {ex.Message}");
-                }
-            },
-            errorHandler: async (client, exception, cancellationToken) =>
-            {
-                Console.WriteLine("Error en el Bot: " + exception.Message);
-                await Task.CompletedTask;
             }
-        );
-    }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error procesando update de Telegram: {ex.Message}");
+            }
+        },
+        errorHandler: async (client, exception, cancellationToken) =>
+        {
+            Console.WriteLine("Error en el Bot: " + exception.Message);
+            await Task.CompletedTask; // Buenas prácticas para tareas asíncronas
+        }
+    );
+}
 
     private async Task HandleMessageAsync(ITelegramBotClient client, Message message, Update update, CancellationToken cancellationToken)
     {
@@ -103,12 +105,17 @@ public class TelegramService : ITelegramService
             case "/stock":
                 await ProcessStockRequestAsync(client, chatId);
                 break;
+            
+            case "/vencimiento":
+                await ProcessExpiringBatchesRequestAsync(client, chatId);
+                break; 
 
             case "/menu":
                 var keyboard = new InlineKeyboardMarkup(new[]
                 {
                     new[] { InlineKeyboardButton.WithCallbackData("📊 Ver Ventas", "ver_ventas") },
-                    new[] { InlineKeyboardButton.WithCallbackData("⚠️ Ver Stock", "ver_stock") }
+                    new[] { InlineKeyboardButton.WithCallbackData("⚠️ Ver Stock", "ver_stock") },
+                    new[] { InlineKeyboardButton.WithCallbackData("⏳ Ver Vencimientos", "ver_vencimiento") }
                 });
                 await client.SendMessage(chatId, "Selecciona una opción:", replyMarkup: keyboard);
                 break;
@@ -143,6 +150,9 @@ public class TelegramService : ITelegramService
             case "ver_stock":
                 await ProcessStockRequestAsync(client, chatId);
                 break;
+            case "ver_vencimiento":
+                await ProcessExpiringBatchesRequestAsync(client, chatId);
+                break;
         }
     }
 
@@ -166,5 +176,16 @@ public class TelegramService : ITelegramService
         var stockMessage = messageService.GetLowStockMedicinesMessage();
 
         await client.SendMessage(chatId, stockMessage, parseMode: ParseMode.Html);
+    }
+
+    private async Task ProcessExpiringBatchesRequestAsync(ITelegramBotClient client, long chatId)
+    {
+        await client.SendMessage(chatId, "⏳ Buscando lotes próximos a caducar...");
+
+        using var scope = _scopeFactory.CreateScope();
+        var messageService = scope.ServiceProvider.GetRequiredService<ITelegramMessageService>();
+        var expiringMessage = messageService.GetExpiringBatchesMessage();
+
+        await client.SendMessage(chatId, expiringMessage, parseMode: ParseMode.Html);
     }
 }

@@ -6,4 +6,5 @@ public interface ITelegramMessageService
 {
     string GetDailySalesReportMessage(DateTime date);
     string GetLowStockMedicinesMessage();
+    string GetExpiringBatchesMessage();
 }
