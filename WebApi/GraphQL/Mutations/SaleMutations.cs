@@ -32,7 +32,7 @@ namespace WebApi.GraphQL.Mutations
                 decimal netTotal = 0;
 
                 var saleDetails = new List<SaleDetail>();
-                var inventoryUpdates = new List<(Batch batch, int quantity)>();
+                var inventoryUpdates = new List<(Batch batch, Product product, int quantity)>();
 
                 // PASO A y B: Validación de Inventario y Cálculos
                 foreach (var detailInput in input.Details)
@@ -122,7 +122,7 @@ namespace WebApi.GraphQL.Mutations
                         LineTotal = lineTotal
                     });
 
-                    inventoryUpdates.Add((batch, unitsToDeduct));
+                    inventoryUpdates.Add((batch, product, unitsToDeduct));
                 }
 
                 // PASO G: Validación de Pagos (Antes de insertar para fallar rápido)
@@ -152,18 +152,20 @@ namespace WebApi.GraphQL.Mutations
                 await context.SaveChangesAsync(); // Obtenemos SaleId
 
                 // PASO D, E y F: Detalles, Inventario y Kardex
-                foreach (var detail in saleDetails)
+                for (int i = 0; i < saleDetails.Count; i++)
                 {
+                    var detail = saleDetails[i];
+                    var (batchToUpdate, productToUpdate, unitsToDeduct) = inventoryUpdates[i];
+
                     detail.SaleId = sale.SaleId;
                     context.SaleDetails.Add(detail);
 
                     // Descuento de Inventario
-                    var updateInfo = inventoryUpdates.First(u => u.batch.batch_id == detail.BatchId);
-                    updateInfo.batch.current_quantity_units -= updateInfo.quantity;
+                    batchToUpdate.current_quantity_units -= unitsToDeduct;
                     
                     // Sincronizar stock total en Product
-                    var productToUpdate = await context.Products.FindAsync(detail.ProductId);
-                    productToUpdate.stock_units -= updateInfo.quantity;
+                    productToUpdate.stock_units -= unitsToDeduct;
+                    context.Products.Update(productToUpdate);
 
                     // PASO F: Kardex
                     context.InventoryTransactions.Add(new InventoryTransaction
@@ -172,8 +174,8 @@ namespace WebApi.GraphQL.Mutations
                         BatchId = detail.BatchId,
                         EmployeeId = input.EmployeeId,
                         TransactionType = "SALE",
-                        QuantityMoved = -updateInfo.quantity,
-                        StockAfterTransaction = updateInfo.batch.current_quantity_units,
+                        QuantityMoved = -unitsToDeduct,
+                        StockAfterTransaction = batchToUpdate.current_quantity_units,
                         UnitCost = productToUpdate.cost_price,
                         ReferenceDocumentType = "SALE_INVOICE",
                         ReferenceDocumentId = sale.SaleId,
