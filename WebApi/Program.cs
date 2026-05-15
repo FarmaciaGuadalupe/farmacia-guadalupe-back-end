@@ -95,7 +95,7 @@ builder.Services
     .AddCostAnalyzer() 
     .ModifyCostOptions(o => o.MaxFieldCost = 7000);
 
-builder.Services.AddScoped<ITelegramService, TelegramService>();
+builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddScoped<ITelegramMessageService, TelegramMessageService>();
 
 builder.Services.AddHangfire(config => config
@@ -116,6 +116,10 @@ using (var serviceScope = app.Services.CreateScope())
         { 
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Managua") 
         });
+
+    // Iniciar la escucha del Bot de Telegram (Background)
+    var telegramService = serviceScope.ServiceProvider.GetRequiredService<ITelegramService>();
+    telegramService.InitListen();
 }
 
 // Configure the HTTP request pipeline.
