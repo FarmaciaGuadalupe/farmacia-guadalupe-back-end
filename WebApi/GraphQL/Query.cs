@@ -411,7 +411,7 @@ namespace WebApi.GraphQL
                 .ToList();
 
             var result = products
-                // .Where(p => p.stock_units <= (p.min_stock_units * 1.25m)) // Cerca (hasta 25% por encima del mínimo) o por debajo
+                .Where(p => p.stock_units <= (p.min_stock_units * 1.25m)) // Cerca (hasta 25% por encima del mínimo) o por debajo
                 .OrderBy(p => p.stock_units - p.min_stock_units) // Los más críticos primero
                 .Take(10)
                 .Select(p => {
