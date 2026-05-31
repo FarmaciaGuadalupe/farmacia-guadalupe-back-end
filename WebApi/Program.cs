@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Hangfire;
+using HotChocolate.Types.Pagination;
 using WebApi.Data;
 using WebApi.GraphQL;
 using WebApi.GraphQL.Mutations;
@@ -73,7 +74,13 @@ builder.Services.AddAuthorization();
 // --- SERVICIOS DE HOT CHOCOLATE ---
 builder.Services
     .AddGraphQLServer()
-    .AddQueryType<Query>()       // Registra 'Query.cs'
+    .AddQueryType<Query>()
+    .SetPagingOptions(new PagingOptions
+    {
+        MaxPageSize = 100, // Aumenta el límite máximo (ej. 100)
+        DefaultPageSize = 10 // El límite por defecto si el usuario no envía "first"
+    })
+    // .AddQueryType<Query>()       // Registra 'Query.cs'
     .AddMutationType<Mutation>()
     .AddTypeExtension<EmployeeMutations>()
     .AddTypeExtension<BrandMutations>()  
