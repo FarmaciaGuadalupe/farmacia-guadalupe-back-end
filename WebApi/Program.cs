@@ -2,9 +2,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Hangfire;
+using HotChocolate.Types.Pagination;
 using WebApi.Data;
 using WebApi.GraphQL;
 using WebApi.GraphQL.Mutations;
+using WebApi.Interfaces;
+using WebApi.Jobs;
+using WebApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,7 +74,13 @@ builder.Services.AddAuthorization();
 // --- SERVICIOS DE HOT CHOCOLATE ---
 builder.Services
     .AddGraphQLServer()
-    .AddQueryType<Query>()       // Registra 'Query.cs'
+    .AddQueryType<Query>()
+    .SetPagingOptions(new PagingOptions
+    {
+        MaxPageSize = 100, // Aumenta el límite máximo (ej. 100)
+        DefaultPageSize = 10 // El límite por defecto si el usuario no envía "first"
+    })
+    // .AddQueryType<Query>()       // Registra 'Query.cs'
     .AddMutationType<Mutation>()
     .AddTypeExtension<EmployeeMutations>()
     .AddTypeExtension<BrandMutations>()  
@@ -91,7 +102,32 @@ builder.Services
     .AddCostAnalyzer() 
     .ModifyCostOptions(o => o.MaxFieldCost = 7000);
 
+builder.Services.AddSingleton<ITelegramService, TelegramService>();
+builder.Services.AddScoped<ITelegramMessageService, TelegramMessageService>();
+
+builder.Services.AddHangfire(config => config
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHangfireServer();
+
 var app = builder.Build();
+
+using (var serviceScope = app.Services.CreateScope())
+{
+    var recurringJobManager = serviceScope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    
+    recurringJobManager.AddOrUpdate<DailyReportJob>(
+        "ReporteDiarioFarmacia",
+        job => job.ExecuteAsync(),
+        "0 15 * * *", 
+        new RecurringJobOptions 
+        { 
+            TimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Managua") 
+        });
+
+    // Iniciar la escucha del Bot de Telegram (Background)
+    var telegramService = serviceScope.ServiceProvider.GetRequiredService<ITelegramService>();
+    telegramService.InitListen();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -565,10 +565,46 @@ namespace WebApi.Controllers
             {
                 return StatusCode(500, new ApiResponse { success = false, message = $"Error: {ex.Message}" });
             }
-        }
+            }
 
+            [HttpPut("toggleStatus/{id}")]
+            public async Task<ActionResult<ApiResponse>> ToggleStatus(int id)
+            {
+            var emp = await _dataBase.Employees.FindAsync(id);
+            if (emp == null)
+            {
+                return NotFound(new ApiResponse
+                {
+                    success = false,
+                    message = "Empleado no encontrado"
+                });
+            }
 
+            // Lógica de Toggle: Alternar entre ID 1 (Activo) y ID 2 (Inactivo)
+            emp.EmployeeStatusId = (emp.EmployeeStatusId == 1) ? 2 : 1;
 
-    }
-}
+            try
+            {
+                await _dataBase.SaveChangesAsync();
+                string statusName = (emp.EmployeeStatusId == 1) ? "Activo" : "Inactivo";
+
+                return Ok(new ApiResponse
+                {
+                    success = true,
+                    message = $"Estado del empleado cambiado a {statusName}",
+                    data = new { emp.EmployeeId, emp.EmployeeStatusId }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse
+                {
+                    success = false,
+                    message = $"Error al cambiar el estado: {ex.Message}"
+                });
+            }
+            }
+
+            }
+            }
 
