@@ -335,5 +335,31 @@ namespace WebApi.GraphQL.Mutations
                 return new MutationResult(false, $"Error al actualizar: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Alterna el estado del empleado entre ID 1 (Activo) y ID 2 (Inactivo).
+        /// </summary>
+        public async Task<MutationResult> ToggleEmployeeStatusAsync(
+            int employeeId,
+            [Service] AppDbContext context)
+        {
+            var emp = await context.Employees.FindAsync(employeeId);
+            if (emp == null)
+                return new MutationResult(false, "Empleado no encontrado");
+
+            // Alternar entre 1 y 2
+            emp.EmployeeStatusId = (emp.EmployeeStatusId == 1) ? 2 : 1;
+
+            try
+            {
+                await context.SaveChangesAsync();
+                string statusName = (emp.EmployeeStatusId == 1) ? "Activo" : "Inactivo";
+                return new MutationResult(true, $"Estado del empleado cambiado a {statusName}");
+            }
+            catch (Exception ex)
+            {
+                return new MutationResult(false, $"Error al cambiar el estado: {ex.Message}");
+            }
+        }
     }
 }
