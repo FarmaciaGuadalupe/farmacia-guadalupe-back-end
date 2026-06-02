@@ -34,4 +34,14 @@ namespace WebApi.GraphQL.Inputs
         int MinStockUnits,
         List<MedicineActiveIngredientInput> Ingredients
     );
+
+    public record UpdateMedicineInput(
+        int MedicineId,
+        string Name,
+        int IdBrand,
+        int CategoryId,
+        int AdministrationRouteId,
+        string Description,
+        List<MedicineActiveIngredientInput> Ingredients
+    );
 }

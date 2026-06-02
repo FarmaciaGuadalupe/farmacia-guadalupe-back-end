@@ -99,5 +99,61 @@ namespace WebApi.GraphQL.Mutations
                 return new MutationResult(false, $"Error al crear la medicina: {ex.Message}");
             }
         }
+
+        public async Task<MutationResult> UpdateMedicineAsync(
+            UpdateMedicineInput input,
+            [Service] AppDbContext context)
+        {
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var medicine = await context.Medicines
+                    .Include(m => m.medicine_active_ingredients)
+                    .FirstOrDefaultAsync(m => m.medicine_id == input.MedicineId);
+
+                if (medicine == null)
+                {
+                    return new MutationResult(false, "Medicina no encontrada");
+                }
+
+                // 1. Actualizar campos básicos
+                medicine.name = input.Name;
+                medicine.id_brand = input.IdBrand;
+                medicine.category_id = input.CategoryId;
+                medicine.administration_route_id = input.AdministrationRouteId;
+                medicine.description = input.Description;
+
+                // 2. Actualizar Ingredientes Activos
+                // Eliminamos los actuales
+                context.MedicineActiveIngredients.RemoveRange(medicine.medicine_active_ingredients);
+
+                // Agregamos los nuevos
+                if (input.Ingredients != null && input.Ingredients.Count > 0)
+                {
+                    foreach (var ing in input.Ingredients)
+                    {
+                        var medicineActiveIngredient = new MedicineActiveIngredient
+                        {
+                            medicine_id = medicine.medicine_id,
+                            active_ingredient_id = ing.ActiveIngredientId,
+                            dose_value = ing.DoseValue,
+                            dose_unit_id = ing.DoseUnitId
+                        };
+                        context.MedicineActiveIngredients.Add(medicineActiveIngredient);
+                    }
+                }
+
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return new MutationResult(true, "Medicina actualizada exitosamente");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return new MutationResult(false, $"Error al actualizar la medicina: {ex.Message}");
+            }
+        }
     }
 }
