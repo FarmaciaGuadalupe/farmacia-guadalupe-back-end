@@ -58,10 +58,9 @@ namespace WebApi.Controllers
             if (emp == null)
                 return Unauthorized(new ApiResponse { success = false, message = "Credenciales inválidas" });
 
-            // var okPassword = BCrypt.Net.BCrypt.Verify(dto.password, emp.password);
-            // /*if (!okPassword)
-            //     return Unauthorized(new ApiResponse { success = false, message = "Credenciales inválidas" });
-            //     */
+            var okPassword = BCrypt.Net.BCrypt.Verify(dto.password, emp.password);
+            if (!okPassword)
+                return Unauthorized(new ApiResponse { success = false, message = "Credenciales inválidas" });
 
             if (emp.EmployeeStatusId != 1)
                 return Forbid(); // o Unauthorized con mensaje

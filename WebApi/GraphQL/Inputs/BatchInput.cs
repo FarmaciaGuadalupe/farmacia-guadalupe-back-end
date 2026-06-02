@@ -8,4 +8,13 @@ namespace WebApi.GraphQL.Inputs
         DateTime ExpirationDate,
         int QuantityUnits
     );
+
+    public record UpdateBatchInput(
+        int BatchId,
+        int ProductId,
+        string BatchCode,
+        DateTime ExpirationDate,
+        int CurrentQuantityUnits,
+        bool IsActive
+    );
 }
