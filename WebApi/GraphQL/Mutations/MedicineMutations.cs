@@ -109,6 +109,7 @@ namespace WebApi.GraphQL.Mutations
             try
             {
                 var medicine = await context.Medicines
+                    .Include(m => m.product)
                     .Include(m => m.medicine_active_ingredients)
                     .FirstOrDefaultAsync(m => m.medicine_id == input.MedicineId);
 
@@ -117,18 +118,34 @@ namespace WebApi.GraphQL.Mutations
                     return new MutationResult(false, "Medicina no encontrada");
                 }
 
-                // 1. Actualizar campos básicos
+                // 1. Actualizar campos de Medicine
                 medicine.name = input.Name;
                 medicine.id_brand = input.IdBrand;
+                medicine.manufacturer_id = input.ManufacturerId;
                 medicine.category_id = input.CategoryId;
                 medicine.administration_route_id = input.AdministrationRouteId;
+                medicine.requires_prescription = input.RequiresPrescription;
                 medicine.description = input.Description;
 
-                // 2. Actualizar Ingredientes Activos
-                // Eliminamos los actuales
+                // 2. Actualizar campos de Product (relacionado)
+                if (medicine.product != null)
+                {
+                    medicine.product.barcode = input.Barcode;
+                    medicine.product.supplier_id = input.SupplierId;
+                    medicine.product.presentation_id = input.PresentationId;
+                    medicine.product.unit_of_measure_id = input.UnitOfMeasureId;
+                    medicine.product.units_per_presentation = input.UnitsPerPresentation;
+                    medicine.product.currency = input.Currency;
+                    medicine.product.cost_price = input.CostPrice;
+                    medicine.product.price_per_unit = input.PricePerUnit;
+                    medicine.product.price_full_presentation = input.PriceFullPresentation;
+                    medicine.product.is_fractionable = input.IsFractionable;
+                    medicine.product.min_stock_units = input.MinStockUnits;
+                }
+
+                // 3. Actualizar Ingredientes Activos (Reemplazo total)
                 context.MedicineActiveIngredients.RemoveRange(medicine.medicine_active_ingredients);
 
-                // Agregamos los nuevos
                 if (input.Ingredients != null && input.Ingredients.Count > 0)
                 {
                     foreach (var ing in input.Ingredients)
@@ -147,7 +164,7 @@ namespace WebApi.GraphQL.Mutations
                 await context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return new MutationResult(true, "Medicina actualizada exitosamente");
+                return new MutationResult(true, "Medicina y producto actualizados exitosamente");
             }
             catch (Exception ex)
             {
