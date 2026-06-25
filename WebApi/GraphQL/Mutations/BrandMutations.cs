@@ -1,4 +1,4 @@
-﻿using WebApi.Data;
+using WebApi.Data;
 using WebApi.Models;
 using HotChocolate;
 using HotChocolate.Types;
@@ -46,6 +46,35 @@ namespace WebApi.GraphQL.Mutations
             brand.name = newName;
 
             // Guardamos cambios
+            await context.SaveChangesAsync();
+
+            return brand;
+        }
+
+        public async Task<Brands> UpdateBrandAsync(
+            [Service] AppDbContext context,
+            int id_brand,
+            string? name,
+            string? logo_url,
+            string? contact_phone,
+            string? contact_email,
+            bool? is_active)
+        {
+            var brand = await context.Brands.FindAsync(id_brand);
+
+            if (brand == null)
+            {
+                throw new GraphQLException("La marca no existe.");
+            }
+
+            if (name != null) brand.name = name;
+            if (logo_url != null) brand.logo_url = logo_url;
+            if (contact_phone != null) brand.contact_phone = contact_phone;
+            if (contact_email != null) brand.contact_email = contact_email;
+            if (is_active.HasValue) brand.is_active = is_active.Value;
+
+            brand.updated_at = DateTime.UtcNow;
+
             await context.SaveChangesAsync();
 
             return brand;
